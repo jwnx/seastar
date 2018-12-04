@@ -78,7 +78,7 @@ struct cpu {
 
 struct resources {
     std::vector<cpu> cpus;
-    io_queue_topology io_queues;
+    io_queue_topology ioq_topology;
 };
 
 resources allocate(configuration c);
