@@ -260,15 +260,32 @@ allocate_io_queues(hwloc_topology_t& topology, configuration c, std::vector<cpu>
 }
 
 
-size_t get_cgroup_memory_limit() {
-    std::experimental::filesystem::path cgroup_memory = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
 
-    try {
-        return boost::lexical_cast<size_t>(read_first_line(cgroup_memory));
-    } catch (...) {
-        return std::numeric_limits<size_t>::max();
+optional<cpuset> cgroup::cpu_set() {
+    auto cpuset = cgroup::read_setting_as<std::string>("/sys/fs/cgroup/cpuset/cpuset.cpus");
+
+    if (cpuset) {
+        auto parsed = seastar::parse_cpuset(*cpuset);
+        return (*parsed).value;
     }
+
+    fmt::print("Unable to parse cgroup's cpuset. Ignoring.");
+    return seastar::compat::nullopt;
 }
+
+size_t cgroup::memory_limit() {
+    auto cgroup_memory = cgroup::read_setting_as<size_t>("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+    if (cgroup_memory)
+        return *(cgroup_memory);
+    return std::numeric_limits<size_t>::max();
+}
+
+
+template <typename T>
+optional<T> cgroup::read_setting_as(std::string path) {
+    return boost::lexical_cast<T>(read_first_line(boost::lexical_cast<std::experimental::filesystem::path>(path)));
+}
+
 
 resources allocate(configuration c) {
     hwloc_topology_t topology;
@@ -300,7 +317,7 @@ resources allocate(configuration c) {
     auto machine = hwloc_get_obj_by_depth(topology, machine_depth, 0);
     auto available_memory = machine->memory.total_memory;
     size_t mem = calculate_memory(c, std::min(available_memory,
-                                              get_cgroup_memory_limit()));
+                                              cgroup::memory_limit()));
     unsigned available_procs = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
     unsigned procs = c.cpus.value_or(available_procs);
     if (procs > available_procs) {
