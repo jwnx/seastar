@@ -4817,6 +4817,8 @@ void smp::configure(boost::program_options::variables_map configuration)
     smp::_tmain = std::this_thread::get_id();
     auto nr_cpus = resource::nr_processing_units();
     resource::cpuset cpu_set;
+    auto cgroup_cpuset = resource::cgroup::cpu_set();
+
     std::copy(boost::counting_iterator<unsigned>(0), boost::counting_iterator<unsigned>(nr_cpus),
             std::inserter(cpu_set, cpu_set.end()));
     if (configuration.count("cpuset")) {
@@ -4825,6 +4827,8 @@ void smp::configure(boost::program_options::variables_map configuration)
     if (configuration.count("smp")) {
         nr_cpus = configuration["smp"].as<unsigned>();
     } else {
+        if (cgroup_cpuset)
+            cpu_set = *cgroup_cpuset;
         nr_cpus = cpu_set.size();
     }
     smp::count = nr_cpus;
