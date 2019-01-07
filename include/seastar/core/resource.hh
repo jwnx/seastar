@@ -40,6 +40,16 @@ using compat::optional;
 
 using cpuset = std::set<unsigned>;
 
+class cgroup {
+public:
+    static optional<cpuset> cpu_set();
+    static size_t memory_limit();
+
+private:
+    template <typename T>
+    static optional<T> read_setting_as(std::string path);
+};
+
 struct configuration {
     optional<size_t> total_memory;
     optional<size_t> reserve_memory;  // if total_memory not specified
