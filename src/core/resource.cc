@@ -32,20 +32,15 @@
 
 namespace seastar {
 
-// Overload for boost program options parsing/validation
-void validate(boost::any& v,
-              const std::vector<std::string>& values,
-              cpuset_bpo_wrapper* target_type, int) {
-    using namespace boost::program_options;
+// This function was made optional because of validate. It needs to
+// throw an error when a non parseable input is given.
+compat::optional<cpuset_bpo_wrapper> parse_cpuset(std::string value) {
     static std::regex r("(\\d+-)?(\\d+)(,(\\d+-)?(\\d+))*");
-    validators::check_first_occurrence(v);
-    // Extract the first string from 'values'. If there is more than
-    // one string, it's an error, and exception will be thrown.
-    auto&& s = validators::get_single_string(values);
+
     std::smatch match;
-    if (std::regex_match(s, match, r)) {
+    if (std::regex_match(value, match, r)) {
         std::vector<std::string> ranges;
-        boost::split(ranges, s, boost::is_any_of(","));
+        boost::split(ranges, value, boost::is_any_of(","));
         cpuset_bpo_wrapper ret;
         for (auto&& range: ranges) {
             std::string beg = range;
@@ -57,14 +52,33 @@ void validate(boost::any& v,
             }
             auto b = boost::lexical_cast<unsigned>(beg);
             auto e = boost::lexical_cast<unsigned>(end);
-            if (b > e) {
-                throw validation_error(validation_error::invalid_option_value);
-            }
+
+            if (b > e)
+                return seastar::compat::nullopt;
+
             for (auto i = b; i <= e; ++i) {
                 ret.value.insert(i);
             }
         }
-        v = std::move(ret);
+        return ret;
+    }
+    return seastar::compat::nullopt;
+}
+
+// Overload for boost program options parsing/validation
+void validate(boost::any& v,
+              const std::vector<std::string>& values,
+              cpuset_bpo_wrapper* target_type, int) {
+    using namespace boost::program_options;
+    validators::check_first_occurrence(v);
+
+    // Extract the first string from 'values'. If there is more than
+    // one string, it's an error, and exception will be thrown.
+    auto&& s = validators::get_single_string(values);
+    auto ret = seastar::parse_cpuset(s);
+
+    if (ret) {
+        v = std::move(*ret);
     } else {
         throw validation_error(validation_error::invalid_option_value);
     }
