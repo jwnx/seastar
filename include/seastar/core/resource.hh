@@ -84,6 +84,7 @@ struct cpuset_bpo_wrapper {
     resource::cpuset value;
 };
 
+compat::optional<cpuset_bpo_wrapper> parse_cpuset(std::string value);
 // Overload for boost program options parsing/validation
 extern
 void validate(boost::any& v,
